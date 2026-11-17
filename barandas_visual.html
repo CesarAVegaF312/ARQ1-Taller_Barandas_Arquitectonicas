@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Complemento visual del taller Barandas arquitectónicas: grafo de dependencias de inventarium-pedidos antes y después del atajo.">
+<title>Barandas arquitectónicas · El grafo antes y después del atajo</title>
+<style>
+:root{
+  --ground:#ECEFF4; --surface:#FBFCFE; --sunk:#DFE4EC;
+  --ink:#141A24; --ink-2:#38424F; --muted:#68717F; --line:#D5DBE4; --line-2:#BEC6D2;
+  --real:#17518F; --real-soft:#DDE8F6;
+  --ok:#1B6B4C; --ok-soft:#DCEEE5; --bad:#A5342D; --bad-soft:#F8E1DF;
+  --neutral:#4F5967; --neutral-soft:#E3E7ED; --warn:#8B5E12; --warn-soft:#F6EBD5;
+  --shadow:0 1px 2px rgba(20,26,36,.05), 0 12px 28px -20px rgba(20,26,36,.45);
+  --fd:'Archivo','Segoe UI',system-ui,sans-serif;
+  --fb:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
+  --fm:'IBM Plex Mono','Cascadia Mono',Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --ground:#11161F; --surface:#19202A; --sunk:#212934;
+    --ink:#E4EAF2; --ink-2:#B9C3D0; --muted:#8A94A2; --line:#2A3441; --line-2:#3B4756;
+    --real:#6FA8E8; --real-soft:#152840;
+    --ok:#4FAD82; --ok-soft:#112A20; --bad:#E2776E; --bad-soft:#2F1614;
+    --neutral:#98A2B0; --neutral-soft:#242C36; --warn:#CF9A44; --warn-soft:#2C2211;
+    --shadow:0 1px 2px rgba(0,0,0,.45), 0 12px 28px -20px rgba(0,0,0,.9);
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--fb);font-size:16px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;padding:0 20px 60px}
+.wrap{max-width:1240px;margin:0 auto}
+h1,h2,h3{font-family:var(--fd);margin:0;line-height:1.15;letter-spacing:-.014em}
+p{margin:0}
+code{font-family:var(--fm);font-size:.88em}
+header{padding:40px 0 22px}
+.eyebrow{font-family:var(--fm);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+h1{font-size:clamp(28px,4vw,40px)}
+.lead{color:var(--ink-2);max-width:72ch;margin-top:12px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+.toolbar{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
+.seg{display:inline-flex;background:var(--sunk);border-radius:9px;padding:3px;gap:2px}
+.seg button{font:600 14px var(--fb);color:var(--ink-2);background:transparent;border:0;border-radius:7px;padding:7px 14px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.seg button:focus-visible{outline:2px solid var(--real);outline-offset:1px}
+.marcador{font-family:var(--fm);font-size:13px;padding:6px 10px;border-radius:7px}
+.marcador.ok{background:var(--ok-soft);color:var(--ok)}
+.marcador.bad{background:var(--bad-soft);color:var(--bad)}
+.lienzo{padding:8px 8px 0;overflow-x:auto}
+#grafo{display:block;width:100%;min-width:980px;height:auto}
+.leyenda svg{flex:none}
+.leyenda{display:flex;flex-wrap:wrap;gap:18px;padding:10px 18px 14px;font-size:13px;color:var(--muted)}
+.leyenda span{display:inline-flex;align-items:center;gap:7px}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:18px;margin-top:18px}
+@media (max-width:860px){.grid{grid-template-columns:1fr}}
+.panel{padding:18px 20px}
+.panel h2{font-size:18px;margin-bottom:12px}
+.reglas{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.reglas li button{width:100%;text-align:left;display:grid;grid-template-columns:44px 1fr auto;gap:10px;align-items:center;
+  font:14px var(--fb);color:var(--ink);background:transparent;border:1px solid transparent;border-radius:8px;padding:6px 8px;cursor:pointer}
+.reglas li button:hover{background:var(--sunk)}
+.reglas li button[aria-pressed="true"]{border-color:var(--line-2);background:var(--sunk)}
+.reglas .id{font-family:var(--fm);font-weight:600;font-size:13px;color:var(--muted)}
+.chip{font-family:var(--fm);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:20px}
+.chip.ok{background:var(--ok-soft);color:var(--ok)}
+.chip.bad{background:var(--bad-soft);color:var(--bad)}
+.detalle h3{font-size:16px;margin-bottom:8px}
+.detalle p{color:var(--ink-2);margin-bottom:10px}
+.detalle pre{font-family:var(--fm);font-size:12.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word;
+  background:var(--sunk);border-radius:8px;padding:12px 14px;margin:8px 0 0;color:var(--ink)}
+.nota{font-size:13px;color:var(--muted);margin-top:18px}
+/* SVG */
+.banda{fill:var(--sunk);opacity:.55}
+.banda-lbl{font:600 12px var(--fm);letter-spacing:.08em;text-transform:uppercase;fill:var(--muted)}
+.col-lbl{font:600 12px var(--fb);fill:var(--ink-2)}
+.nodo rect{fill:var(--surface);stroke:var(--line-2);stroke-width:1.2}
+.nodo text{font:12.5px var(--fm);fill:var(--ink)}
+.nodo.iface rect{stroke-dasharray:4 3}
+.nodo.externo rect{fill:var(--neutral-soft);stroke:var(--neutral)}
+.nodo.nuevo rect{stroke:var(--real);stroke-width:1.8}
+.nodo.viola rect{stroke:var(--bad);stroke-width:2.2;fill:var(--bad-soft)}
+.nodo{cursor:default}
+.nodo.clic{cursor:pointer}
+.arista{fill:none;stroke:var(--line-2);stroke-width:1.5}
+.arista.impl{stroke-dasharray:5 4}
+.arista.viola{stroke:var(--bad);stroke-width:2.6;cursor:pointer}
+.arista.tenue,.nodo.tenue{opacity:.18}
+.arista-lbl{font:600 11px var(--fm);fill:var(--bad)}
+.punta{fill:var(--line-2)} .punta-bad{fill:var(--bad)} .punta-hueca{fill:var(--surface);stroke:var(--line-2);stroke-width:1.2}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">ARQ1 · Módulo 5 · Taller Barandas arquitectónicas</div>
+    <h1>El grafo antes y después del atajo</h1>
+    <p class="lead">Dependencias reales de <code>inventarium-pedidos</code> antes y después del atajo.
+      En la base todas las flechas apuntan hacia adentro. Con el atajo aparecen tres:
+      una que se salta las capas, una que mete Spring en el dominio y un nombre fuera de la convención.
+      Hagan clic en lo que está en rojo, o en una regla, para ver el mensaje que produce ArchUnit.</p>
+  </header>
+
+  <section class="card" aria-label="Grafo de dependencias">
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="Estado del proyecto">
+        <button type="button" data-estado="base" aria-pressed="true">1 · Base</button>
+        <button type="button" data-estado="atajo" aria-pressed="false">2 · Con el atajo</button>
+      </div>
+      <div id="marcador" class="marcador ok" aria-live="polite"></div>
+    </div>
+    <div class="lienzo"><svg id="grafo" viewBox="0 0 1290 560" role="img" aria-labelledby="grafo-desc"><desc id="grafo-desc">Grafo de dependencias por capas</desc></svg></div>
+    <div class="leyenda">
+      <span><svg width="34" height="10"><line x1="0" y1="5" x2="34" y2="5" stroke="currentColor" stroke-width="1.5"/></svg>usa</span>
+      <span><svg width="34" height="10"><line x1="0" y1="5" x2="34" y2="5" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4"/></svg>implementa (la flecha apunta a la interfaz)</span>
+      <span><svg width="34" height="10"><line x1="0" y1="5" x2="34" y2="5" stroke="#A5342D" stroke-width="2.6"/></svg>viola una regla</span>
+      <span><svg width="22" height="14"><rect x="1" y="1" width="20" height="12" rx="3" fill="none" stroke="currentColor" stroke-dasharray="4 3"/></svg>interfaz (puerto)</span>
+      <span><svg width="22" height="14"><rect x="1" y="1" width="20" height="12" rx="3" fill="none" stroke="#17518F" stroke-width="1.8"/></svg>clase nueva en este estado</span>
+    </div>
+  </section>
+
+  <div class="grid">
+    <section class="card panel" aria-label="Reglas">
+      <h2>Reglas ArchUnit en este estado</h2>
+      <ul class="reglas" id="reglas"></ul>
+    </section>
+    <section class="card panel detalle" aria-live="polite" id="detalle"></section>
+  </div>
+
+  <p class="nota">Los totales y los mensajes son los de una ejecución real de <code>mvn -B clean verify</code>
+    (Spring Boot 3.5.16, ArchUnit 1.5.1, compilado para Java 17). Se omite el prefijo <code>co.edu.sabana.inventarium.</code> para
+    que quepan. El nodo <code>config</code> no se dibuja: conoce a todos para cablearlos y nadie lo conoce a él.</p>
+</div>
+
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const W = 212, H = 32;
+
+  // Columnas (x del centro) y filas (y del centro).
+  const X = {del: 125, pin: 395, uc: 655, pout: 915, inf: 1170};
+  const COLS = [
+    {x: X.del, t: "Entrega", s: "adaptador primario"},
+    {x: X.pin, t: "Puertos primarios", s: "port.in"},
+    {x: X.uc,  t: "Casos de uso", s: "usecase"},
+    {x: X.pout, t: "Puertos secundarios", s: "port.out"},
+    {x: X.inf, t: "Infraestructura", s: "adaptadores secundarios"},
+  ];
+
+  // Nodos: id -> {x, y, tipo, estados en que existe}
+  const NODOS = {
+    PedidoControlador:          {x: X.del,  y: 160, est: "base atajo"},
+    StockBajoController:        {x: X.del,  y: 290, est: "atajo", viola: ["N6"]},
+    CrearPedidoCasoDeUso:       {x: X.pin,  y: 140, est: "base atajo", iface: 1},
+    ConsultarPedidoCasoDeUso:   {x: X.pin,  y: 190, est: "base atajo", iface: 1},
+    CrearPedidoServicio:        {x: X.uc,   y: 140, est: "base atajo"},
+    ConsultarPedidoServicio:    {x: X.uc,   y: 190, est: "base atajo"},
+    RepositorioDePedidos:       {x: X.pout, y: 160, est: "base atajo", iface: 1},
+    CatalogoDeProductos:        {x: X.pout, y: 240, est: "base atajo", iface: 1},
+    PedidosEnMemoriaAdaptador:  {x: X.inf,  y: 160, est: "base atajo"},
+    CatalogoEnMemoriaAdaptador: {x: X.inf,  y: 240, est: "base atajo", nuevoEn: "atajo", nota: {atajo: "+ todos()"}},
+    Pedido:                     {x: X.pin,  y: 470, est: "base atajo"},
+    Producto:                   {x: X.uc,   y: 470, est: "base atajo"},
+    PoliticaDeStockBajo:        {x: X.pout, y: 470, est: "atajo", viola: {atajo: ["R1"]}, nota: {atajo: "@Component + @Value"}},
+    "org.springframework":      {x: X.inf,  y: 470, est: "atajo", externo: 1},
+  };
+
+  // Aristas: [desde, hacia, tipo, estados, reglas violadas]
+  const ARISTAS = [
+    ["PedidoControlador", "CrearPedidoCasoDeUso", "usa", "base atajo"],
+    ["PedidoControlador", "ConsultarPedidoCasoDeUso", "usa", "base atajo"],
+    ["CrearPedidoServicio", "CrearPedidoCasoDeUso", "impl", "base atajo"],
+    ["ConsultarPedidoServicio", "ConsultarPedidoCasoDeUso", "impl", "base atajo"],
+    ["CrearPedidoServicio", "RepositorioDePedidos", "usa", "base atajo"],
+    ["CrearPedidoServicio", "CatalogoDeProductos", "usa", "base atajo"],
+    ["ConsultarPedidoServicio", "RepositorioDePedidos", "usa", "base atajo"],
+    ["PedidosEnMemoriaAdaptador", "RepositorioDePedidos", "impl", "base atajo"],
+    ["CatalogoEnMemoriaAdaptador", "CatalogoDeProductos", "impl", "base atajo"],
+    ["CrearPedidoServicio", "Pedido", "usa", "base atajo"],
+    ["CrearPedidoServicio", "Producto", "usa", "base atajo"],
+    // atajo
+    ["StockBajoController", "CatalogoEnMemoriaAdaptador", "usa", "atajo", ["R4", "R5"]],
+    ["StockBajoController", "PoliticaDeStockBajo", "usa", "atajo"],
+    ["PoliticaDeStockBajo", "org.springframework", "usa", "atajo", ["R1"]],
+  ];
+
+  const REGLAS = [
+    ["R1", "El dominio no depende de Spring, Jakarta, Jackson ni Hibernate"],
+    ["R2", "El dominio no depende de capas externas"],
+    ["R3", "Los casos de uso solo dependen del núcleo y de java.*"],
+    ["R4", "Las capas solo dependen hacia adentro"],
+    ["R5", "Los controladores solo usan puertos primarios"],
+    ["R6", "Todo @RestController vive en delivery.rest"],
+    ["R7", "No hay ciclos entre paquetes"],
+    ["N1", "Puertos primarios: *CasoDeUso"],
+    ["N2", "port.out contiene solo interfaces"],
+    ["N3", "Puertos sin nombres de tecnología"],
+    ["N4", "Adaptadores secundarios: *Adaptador en infrastructure"],
+    ["N5", "Casos de uso: *Servicio que implementa un puerto primario"],
+    ["N6", "Controladores REST: *Controlador"],
+  ];
+
+  // Mensajes reales de ArchUnit (ejecución del estado "atajo").
+  const MSJ = {
+    R1: "Rule 'R1. El dominio no depende de Spring, Jakarta, Jackson ni Hibernate, because la regla de negocio no debe conocer la tecnologia que la entrega ni la que la persiste. Si el dominio necesita un valor de configuracion, recibalo por constructor y cablee el valor en config/' was violated (2 times):\nClass <domain.model.PoliticaDeStockBajo> is annotated with <org.springframework.stereotype.Component> in (PoliticaDeStockBajo.java:0)\nParameter <int> of constructor <domain.model.PoliticaDeStockBajo.<init>(int)> is annotated with <org.springframework.beans.factory.annotation.Value> in (PoliticaDeStockBajo.java:0)",
+    R4: "Rule 'R4. Las capas solo dependen hacia adentro, because un adaptador (REST o persistencia) no puede ser usado por otro adaptador ni por el nucleo. La entrega llega al negocio por un puerto primario; la infraestructura solo la conoce config/, que la inyecta detras de un puerto secundario' was violated (3 times):\nConstructor <delivery.rest.StockBajoController.<init>(infrastructure.persistence.CatalogoEnMemoriaAdaptador, domain.model.PoliticaDeStockBajo)> has parameter of type <infrastructure.persistence.CatalogoEnMemoriaAdaptador> in (StockBajoController.java:0)\nField <delivery.rest.StockBajoController.catalogo> has type <infrastructure.persistence.CatalogoEnMemoriaAdaptador> in (StockBajoController.java:0)\nMethod <delivery.rest.StockBajoController.stockBajo()> calls method <infrastructure.persistence.CatalogoEnMemoriaAdaptador.todos()> in (StockBajoController.java:31)",
+    R5: "Rule 'R5. Los controladores no acceden a repositorios, adaptadores ni implementaciones de casos de uso, because un controlador solo conoce puertos primarios (application/port/in). Si el controlador consulta el repositorio directamente, la regla de negocio queda en la capa HTTP y ninguna otra entrada (un job, un evento, una prueba) puede reutilizarla' was violated (3 times):\nConstructor <delivery.rest.StockBajoController.<init>(infrastructure.persistence.CatalogoEnMemoriaAdaptador, domain.model.PoliticaDeStockBajo)> has parameter of type <infrastructure.persistence.CatalogoEnMemoriaAdaptador> in (StockBajoController.java:0)\nField <delivery.rest.StockBajoController.catalogo> has type <infrastructure.persistence.CatalogoEnMemoriaAdaptador> in (StockBajoController.java:0)\nMethod <delivery.rest.StockBajoController.stockBajo()> calls method <infrastructure.persistence.CatalogoEnMemoriaAdaptador.todos()> in (StockBajoController.java:31)",
+    N6: "Rule 'N6. Los controladores REST terminan en Controlador, because la convencion del equipo es nombrar en espanol el rol de cada clase (Controlador, Servicio, Adaptador, CasoDeUso)' was violated (1 times):\nClass <delivery.rest.StockBajoController> does not have simple name ending with 'Controlador' in (StockBajoController.java:0)",
+  };
+
+  const QUE = {
+    R1: "PoliticaDeStockBajo quedó en el dominio, pero con @Component y el umbral inyectado con @Value. El dominio ya no se puede compilar ni probar sin Spring.",
+    R4: "El controlador recibe el adaptador concreto de infraestructura: la flecha cruza todo el hexágono de afuera hacia afuera, sin pasar por un puerto.",
+    R5: "La lógica (filtrar y ordenar) quedó en el controlador. Un job nocturno que quisiera la misma alerta tendría que duplicarla o llamar por HTTP.",
+    N6: "El agente usó la convención del último tutorial que vio. El nombre importa porque las reglas, las personas y los agentes encuentran las piezas por su sufijo.",
+  };
+
+  const ESTADOS = {
+    base:     {total: 29, fallas: 0, texto: "Estado inicial. Todas las dependencias apuntan hacia el núcleo: el controlador conoce puertos primarios, los servicios conocen puertos secundarios y los adaptadores implementan esos puertos desde afuera."},
+    atajo:    {total: 33, fallas: 4, texto: "Se agregan el controlador, la política y el método todos() del adaptador, más dos pruebas unitarias. Las 18 unitarias y la de contexto pasan; fallan 4 reglas de arquitectura."},
+  };
+
+  let estado = "base", foco = null;
+  const svg = document.getElementById("grafo");
+
+  function el(tag, attrs, padre) {
+    const n = document.createElementNS(NS, tag);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    if (padre) padre.appendChild(n);
+    return n;
+  }
+  const existe = (n) => NODOS[n].est.split(" ").includes(estado);
+  const violaNodo = (n) => {
+    const v = NODOS[n].viola;
+    if (!v) return [];
+    if (Array.isArray(v)) return NODOS[n].est.split(" ").includes(estado) ? v : [];
+    return v[estado] || [];
+  };
+  function reglasFallidas() {
+    const s = new Set();
+    ARISTAS.forEach(a => { if (a[3].split(" ").includes(estado) && a[4]) a[4].forEach(r => s.add(r)); });
+    Object.keys(NODOS).forEach(n => { if (existe(n)) violaNodo(n).forEach(r => s.add(r)); });
+    return s;
+  }
+
+  function defs() {
+    const d = el("defs", {}, svg);
+    [["p", "punta"], ["pb", "punta-bad"]].forEach(([id, cls]) => {
+      const m = el("marker", {id, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse"}, d);
+      el("path", {d: "M0,0 L10,5 L0,10 z", class: cls}, m);
+    });
+    const m = el("marker", {id: "ph", viewBox: "0 0 12 12", refX: 11, refY: 6, markerWidth: 10, markerHeight: 10, orient: "auto-start-reverse"}, d);
+    el("path", {d: "M1,1 L11,6 L1,11 z", class: "punta-hueca"}, m);
+  }
+
+  function borde(n, haciaX, haciaY) {
+    // Punto en el borde del rectángulo del nodo n en dirección al punto destino.
+    const c = NODOS[n], dx = haciaX - c.x, dy = haciaY - c.y;
+    if (Math.abs(dx) * H > Math.abs(dy) * W) {
+      const s = Math.sign(dx) * W / 2;
+      return [c.x + s, c.y + dy * (s / dx)];
+    }
+    const s = Math.sign(dy || 1) * H / 2;
+    return [c.x + dx * (s / (dy || 1)), c.y + s];
+  }
+
+  function dibujar() {
+    svg.querySelectorAll(":scope > :not(desc)").forEach(n => n.remove());
+    defs();
+    const fallidas = reglasFallidas();
+
+    // Bandas
+    el("rect", {x: 272, y: 70, width: 776, height: 285, rx: 14, class: "banda"}, svg);
+    el("text", {x: 287, y: 345, class: "banda-lbl"}, svg).textContent = "Aplicación";
+    el("rect", {x: 272, y: 420, width: 1012, height: 100, rx: 14, class: "banda"}, svg);
+    el("text", {x: 287, y: 510, class: "banda-lbl"}, svg).textContent = "Dominio · Java puro";
+    el("text", {x: 1080, y: 510, class: "banda-lbl"}, svg).textContent = "Externo";
+    COLS.forEach(c => {
+      const t = el("text", {x: c.x, y: 36, "text-anchor": "middle", class: "col-lbl"}, svg);
+      t.textContent = c.t;
+      const s = el("text", {x: c.x, y: 54, "text-anchor": "middle", class: "banda-lbl", style: "font-size:10.5px"}, svg);
+      s.textContent = c.s;
+    });
+
+    // Aristas
+    const capaAristas = el("g", {}, svg);
+    ARISTAS.forEach(a => {
+      const [de, a2, tipo, est, viola] = a;
+      if (!est.split(" ").includes(estado)) return;
+      const A = NODOS[de], B = NODOS[a2];
+      let d, lx, ly;
+      if (de === "StockBajoController" && a2 === "CatalogoEnMemoriaAdaptador") {
+        // Arco por encima de todo el hexágono: se salta las capas.
+        const p0 = [A.x, A.y - H / 2], p1 = [B.x, B.y - H / 2];
+        d = `M${p0[0]},${p0[1]} C${A.x + 60},${24} ${B.x - 60},${24} ${p1[0]},${p1[1]}`;
+        lx = (A.x + B.x) / 2; ly = 102;
+      } else {
+        const p0 = borde(de, B.x, B.y), p1 = borde(a2, A.x, A.y);
+        const mx = (p0[0] + p1[0]) / 2;
+        d = Math.abs(p0[1] - p1[1]) < 2 || Math.abs(p0[0] - p1[0]) < 2
+          ? `M${p0[0]},${p0[1]} L${p1[0]},${p1[1]}`
+          : `M${p0[0]},${p0[1]} C${mx},${p0[1]} ${mx},${p1[1]} ${p1[0]},${p1[1]}`;
+        lx = (p0[0] + p1[0]) / 2; ly = (p0[1] + p1[1]) / 2 - 8;
+      }
+      const cls = ["arista"];
+      if (tipo === "impl") cls.push("impl");
+      if (viola) cls.push("viola");
+      if (foco && !(viola && viola.includes(foco))) cls.push("tenue");
+      const marker = viola ? "url(#pb)" : tipo === "impl" ? "url(#ph)" : "url(#p)";
+      const p = el("path", {d, class: cls.join(" "), "marker-end": marker}, capaAristas);
+      if (viola) {
+        p.addEventListener("click", () => enfocar(viola[0]));
+        const t = el("text", {x: lx, y: ly, "text-anchor": "middle", class: "arista-lbl"}, capaAristas);
+        t.textContent = viola.join(" · ");
+        if (foco && !viola.includes(foco)) t.classList.add("tenue");
+      }
+    });
+
+    // Nodos
+    Object.keys(NODOS).forEach(n => {
+      if (!existe(n)) return;
+      const c = NODOS[n], v = violaNodo(n);
+      const cls = ["nodo"];
+      if (c.iface) cls.push("iface");
+      if (c.externo) cls.push("externo");
+      const nuevo = (c.est === estado) || (c.nuevoEn && c.nuevoEn.split(" ").includes(estado));
+      if (nuevo && !c.externo) cls.push("nuevo");
+      if (v.length) cls.push("viola", "clic");
+      if (foco && !v.includes(foco) && !aristaToca(n, foco)) cls.push("tenue");
+      const g = el("g", {class: cls.join(" "), transform: `translate(${c.x - W / 2},${c.y - H / 2})`}, svg);
+      el("rect", {width: W, height: H, rx: 6}, g);
+      const t = el("text", {x: W / 2, y: H / 2 + 4.5, "text-anchor": "middle"}, g);
+      t.textContent = n;
+      const nota = c.nota && c.nota[estado];
+      if (nota) {
+        const tn = el("text", {x: W / 2, y: H + 14, "text-anchor": "middle", style: "font-size:11px;fill:var(--real)"}, g);
+        tn.textContent = nota;
+      }
+      if (v.length) g.addEventListener("click", () => enfocar(v[0]));
+    });
+
+    // Marcador
+    const e = ESTADOS[estado], m = document.getElementById("marcador");
+    m.className = "marcador " + (e.fallas ? "bad" : "ok");
+    m.textContent = e.fallas
+      ? `mvn verify: ${e.total} pruebas, ${e.fallas} fallas (todas ArchUnit) · BUILD FAILURE`
+      : `mvn verify: ${e.total} pruebas, 0 fallas · BUILD SUCCESS`;
+
+    // Lista de reglas
+    const ul = document.getElementById("reglas");
+    ul.innerHTML = "";
+    REGLAS.forEach(([id, txt]) => {
+      const li = document.createElement("li");
+      const b = document.createElement("button");
+      b.type = "button";
+      b.setAttribute("aria-pressed", String(foco === id));
+      const falla = fallidas.has(id);
+      b.innerHTML = `<span class="id">${id}</span><span>${txt}</span><span class="chip ${falla ? "bad" : "ok"}">${falla ? "falla" : "pasa"}</span>`;
+      b.addEventListener("click", () => enfocar(foco === id ? null : id));
+      li.appendChild(b);
+      ul.appendChild(li);
+    });
+
+    // Detalle
+    const det = document.getElementById("detalle");
+    if (foco && fallidas.has(foco)) {
+      det.innerHTML = `<h3>${foco} · lo que ve el grupo en la consola</h3><p>${QUE[foco]}</p><pre></pre>`;
+      det.querySelector("pre").textContent = MSJ[foco];
+    } else if (foco) {
+      const r = REGLAS.find(x => x[0] === foco);
+      det.innerHTML = `<h3>${foco} · pasa en este estado</h3><p>${r[1]}. Ninguna clase la viola aquí.</p>`;
+    } else {
+      det.innerHTML = `<h3>${{base: "Base", atajo: "Con el atajo"}[estado]}</h3><p>${e.texto}</p>`
+        + (e.fallas ? `<p>Seleccionen una regla en rojo para ver su mensaje.</p>` : "");
+    }
+  }
+
+  function aristaToca(n, regla) {
+    return ARISTAS.some(a => a[3].split(" ").includes(estado) && a[4] && a[4].includes(regla) && (a[0] === n || a[1] === n));
+  }
+
+  function enfocar(r) { foco = r; dibujar(); }
+
+  document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click", () => {
+    estado = b.dataset.estado;
+    foco = null;
+    document.querySelectorAll(".seg button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    dibujar();
+  }));
+
+  dibujar();
+})();
+</script>
+</body>
+</html>
