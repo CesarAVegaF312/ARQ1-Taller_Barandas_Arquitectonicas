@@ -101,7 +101,8 @@ Deben ver `Tests run: 29, Failures: 0, Errors: 0, Skipped: 0` y `BUILD SUCCESS`.
 
 ## Complemento visual
 
-[`barandas_visual.html`](barandas_visual.html) se abre con doble clic, sin servidor ni conexión.
+En línea: <https://cesaravegaf312.github.io/ARQ1-Taller_Barandas_Arquitectonicas/barandas_visual.html>.
+Sin conexión: [`barandas_visual.html`](barandas_visual.html) se abre con doble clic, sin servidor.
 Muestra el grafo de dependencias del proyecto en dos estados (la base y con el atajo), marca en rojo las dependencias que violan una regla y, al hacer clic, presenta el
 mensaje real de ArchUnit que produce cada una.
 
